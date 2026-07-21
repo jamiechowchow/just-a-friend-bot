@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from telegram import Update
@@ -25,6 +26,12 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def main() -> None:
     db.init_db()
+
+    # Python 3.14 removed the automatic background event loop that older
+    # versions created on demand. python-telegram-bot 21.x still expects
+    # one to exist, so we create and register it ourselves before the
+    # library looks for it.
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
