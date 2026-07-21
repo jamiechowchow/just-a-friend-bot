@@ -2,22 +2,16 @@ import asyncio
 import logging
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
 from bot import db
 from bot.config import TELEGRAM_BOT_TOKEN
+from bot.onboarding import onboarding_conversation, settings_conversation
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    db.create_user_if_missing(update.effective_chat.id)
-    await update.message.reply_text(
-        "Hey! I'm Just A Friend \U0001F44B I'm still being built, but I can hear you loud and clear."
-    )
 
 
 async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -35,7 +29,11 @@ def main() -> None:
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
+    # These two handle the multi-step /start and /settings conversations.
+    # They only "claim" a message if that chat is mid-conversation with
+    # them, so plain messages fall through to the echo handler below.
+    app.add_handler(onboarding_conversation)
+    app.add_handler(settings_conversation)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
     logger.info("Bot is starting... (Ctrl+C to stop)")
