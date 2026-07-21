@@ -1,0 +1,12 @@
+# Secrets — never commit your real .env file
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# The bot's local database (contains user data)
+*.db
+*.sqlite3
