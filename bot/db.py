@@ -81,6 +81,16 @@ def get_user(chat_id: int) -> sqlite3.Row | None:
         ).fetchone()
 
 
+def get_fully_onboarded_users() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            """
+            SELECT * FROM users
+            WHERE timezone IS NOT NULL AND morning_time IS NOT NULL AND evening_time IS NOT NULL
+            """
+        ).fetchall()
+
+
 def save_response(
     chat_id: int,
     prompt_type: str,

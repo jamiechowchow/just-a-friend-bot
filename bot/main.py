@@ -2,9 +2,9 @@ import asyncio
 import logging
 
 from telegram import Update
-from telegram.ext import Application, ContextTypes, MessageHandler, filters
+from telegram.ext import Application, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-from bot import db
+from bot import db, scheduling
 from bot.config import TELEGRAM_BOT_TOKEN
 from bot.onboarding import onboarding_conversation, settings_conversation
 
@@ -13,9 +13,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Placeholder replies for now — task 5 swaps these for real Claude-generated
+# responses that actually reference what the user wrote.
+_FREE_TEXT_ACKS = {
+    "morning_lookforward": "Ooh, {text}? Love that — hope it goes well today.",
+    "evening_highlight": "That sounds like a great moment. Glad you got that today.",
+    "evening_gratitude": "Love that you're noticing the good stuff.",
+    "evening_hard": "That sounds tough. Thanks for sharing it with me \U0001F49B",
+}
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(f"You said: {update.message.text}")
+
+async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    text = update.message.text
+    pending_prompt = context.chat_data.pop("pending_prompt", None)
+
+    if pending_prompt is not None:
+        db.save_response(chat_id, pending_prompt, answer_text=text)
+        reply = _FREE_TEXT_ACKS.get(pending_prompt, "Thanks for sharing \U0001F49B").format(text=text)
+        await update.message.reply_text(reply)
+        return
+
+    # No scheduled prompt was waiting on this — just an anytime message.
+    await update.message.reply_text(f"You said: {text}")
+
+
+async def _post_init(application: Application) -> None:
+    scheduling.schedule_all_users(application.job_queue)
 
 
 def main() -> None:
@@ -27,14 +51,15 @@ def main() -> None:
     # library looks for it.
     asyncio.set_event_loop(asyncio.new_event_loop())
 
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(_post_init).build()
 
     # These two handle the multi-step /start and /settings conversations.
     # They only "claim" a message if that chat is mid-conversation with
-    # them, so plain messages fall through to the echo handler below.
+    # them, so plain messages fall through to handle_free_text below.
     app.add_handler(onboarding_conversation)
     app.add_handler(settings_conversation)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+    app.add_handler(CallbackQueryHandler(scheduling.handle_button_tap))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_free_text))
 
     logger.info("Bot is starting... (Ctrl+C to stop)")
     app.run_polling()

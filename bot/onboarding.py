@@ -9,7 +9,7 @@ from telegram.ext import (
     filters,
 )
 
-from bot import db
+from bot import db, scheduling
 from bot.time_parsing import parse_time_of_day, parse_timezone
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ async def receive_evening_time(update: Update, context: ContextTypes.DEFAULT_TYP
         evening_time=time_str,
     )
     context.user_data.clear()
+    scheduling.schedule_user_jobs(context.job_queue, chat_id)
 
     user = db.get_user(chat_id)
     await update.message.reply_text(
