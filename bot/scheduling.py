@@ -96,10 +96,20 @@ async def send_evening_checkin(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 def _sleep_score_reply(score: int) -> str:
     if score >= 4:
-        return "Love that \U0001F31E Hope the good energy carries through your day."
+        return (
+            "Amazing \U0001F31F Good sleep resets your brain overnight — sharper focus, "
+            "steadier mood, more energy. Ride that wave today!"
+        )
     if score == 3:
-        return "Not bad, not amazing — hope today treats you gently."
-    return "Rough night, huh? Go easy on yourself today \U0001F49B"
+        return (
+            "Decent \U0001F60C Even so-so sleep still lets your brain recharge a bit. "
+            "Take it easy and let the day unfold."
+        )
+    return (
+        "Rough night \U0001F49B Sleep is when your brain clears out the clutter and your "
+        "body repairs itself, so if today feels slower, that's why. Be gentle with "
+        "yourself — tonight's a fresh shot at it."
+    )
 
 
 async def handle_button_tap(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
