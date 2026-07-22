@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, JobQueue
 
-from bot import db
+from bot import ai_reply, db
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,8 @@ async def handle_button_tap(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.edit_message_text(
             f"What's one thing you're looking forward to today?\n\nYou picked: {label}"
         )
-        await context.bot.send_message(chat_id=chat_id, text=f"{label}, nice \U0001F60A Hope it's a good one.")
+        reply = await ai_reply.generate_reply("morning_lookforward", label)
+        await context.bot.send_message(chat_id=chat_id, text=reply)
 
     elif kind == "sleep":
         score = int(value)

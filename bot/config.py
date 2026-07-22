@@ -17,3 +17,9 @@ if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError(
         "TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and fill it in."
     )
+
+if not ANTHROPIC_API_KEY:
+    raise RuntimeError(
+        "ANTHROPIC_API_KEY is not set. Add it to your .env file — the bot's replies "
+        "are powered by Claude, so this is required."
+    )

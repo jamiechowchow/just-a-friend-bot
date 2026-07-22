@@ -4,7 +4,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-from bot import db, scheduling
+from bot import ai_reply, db, scheduling
 from bot.config import TELEGRAM_BOT_TOKEN
 from bot.onboarding import onboarding_conversation, settings_conversation
 
@@ -12,15 +12,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# Placeholder replies for now — task 5 swaps these for real Claude-generated
-# responses that actually reference what the user wrote.
-_FREE_TEXT_ACKS = {
-    "morning_lookforward": "Ooh, {text}? Love that — hope it goes well today.",
-    "evening_highlight": "That sounds like a great moment. Glad you got that today.",
-    "evening_gratitude": "Love that you're noticing the good stuff.",
-    "evening_hard": "That sounds tough. Thanks for sharing it with me \U0001F49B",
-}
 
 
 async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -30,12 +21,12 @@ async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     if pending_prompt is not None:
         db.save_response(chat_id, pending_prompt, answer_text=text)
-        reply = _FREE_TEXT_ACKS.get(pending_prompt, "Thanks for sharing \U0001F49B").format(text=text)
-        await update.message.reply_text(reply)
-        return
+        reply = await ai_reply.generate_reply(pending_prompt, text)
+    else:
+        # No scheduled prompt was waiting on this — just an anytime message.
+        reply = await ai_reply.generate_freeform_reply(text)
 
-    # No scheduled prompt was waiting on this — just an anytime message.
-    await update.message.reply_text(f"You said: {text}")
+    await update.message.reply_text(reply)
 
 
 async def _post_init(application: Application) -> None:
