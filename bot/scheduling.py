@@ -160,17 +160,25 @@ def schedule_user_jobs(job_queue: JobQueue, chat_id: int) -> None:
     _cancel_existing_jobs(job_queue, morning_name)
     _cancel_existing_jobs(job_queue, evening_name)
 
+    # If this process was asleep/suspended (e.g. the computer's screen locked)
+    # right as a check-in was due, the scheduler's default behavior is to give
+    # up on that occurrence entirely rather than fire it late. A grace window
+    # lets it still fire as soon as the process wakes back up.
+    catch_up_window = {"misfire_grace_time": 3600}
+
     job_queue.run_daily(
         send_morning_checkin,
         time=time(morning_hour, morning_minute, tzinfo=tzinfo),
         chat_id=chat_id,
         name=morning_name,
+        job_kwargs=catch_up_window,
     )
     job_queue.run_daily(
         send_evening_checkin,
         time=time(evening_hour, evening_minute, tzinfo=tzinfo),
         chat_id=chat_id,
         name=evening_name,
+        job_kwargs=catch_up_window,
     )
     logger.info("Scheduled daily check-ins for chat %s", chat_id)
 
