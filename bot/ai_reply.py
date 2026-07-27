@@ -33,28 +33,43 @@ QUESTIONS = {
 }
 
 
-async def _generate(user_turn: str) -> str:
+# How many recent messages (user + assistant turns combined) to keep per
+# chat, so replies stay aware of what was just said instead of restarting
+# the conversation from scratch each time. This lives only in memory
+# (context.chat_data), so it resets on a restart/redeploy — that's fine,
+# it's short-term conversational context, not the durable check-in history
+# already saved in the database.
+MAX_HISTORY_MESSAGES = 12
+
+
+async def _generate(history: list[dict], user_turn: str) -> str:
+    messages = [*history, {"role": "user", "content": user_turn}]
     try:
         response = await _get_client().messages.create(
             model="claude-opus-4-8",
             max_tokens=300,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_turn}],
+            messages=messages,
         )
-        return next(block.text for block in response.content if block.type == "text").strip()
+        reply = next(block.text for block in response.content if block.type == "text").strip()
     except anthropic.APIError:
         logger.exception("Claude API call failed; falling back to a generic reply")
         return "Thanks for sharing that with me \U0001F49B"
 
+    history.append({"role": "user", "content": user_turn})
+    history.append({"role": "assistant", "content": reply})
+    del history[: max(0, len(history) - MAX_HISTORY_MESSAGES)]
+    return reply
 
-async def generate_reply(prompt_type: str, answer: str) -> str:
+
+async def generate_reply(prompt_type: str, answer: str, history: list[dict]) -> str:
     question = QUESTIONS.get(prompt_type)
     if question is None:
-        return await generate_freeform_reply(answer)
+        return await generate_freeform_reply(answer, history)
 
     user_turn = f'The daily check-in question was: "{question}"\nThey answered: "{answer}"'
-    return await _generate(user_turn)
+    return await _generate(history, user_turn)
 
 
-async def generate_freeform_reply(user_message: str) -> str:
-    return await _generate(user_message)
+async def generate_freeform_reply(user_message: str, history: list[dict]) -> str:
+    return await _generate(history, user_message)

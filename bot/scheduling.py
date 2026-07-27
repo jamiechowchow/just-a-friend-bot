@@ -130,7 +130,8 @@ async def handle_button_tap(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await query.edit_message_text(
             f"What's one thing you're looking forward to today?\n\nYou picked: {label}"
         )
-        reply = await ai_reply.generate_reply("morning_lookforward", label)
+        history = context.chat_data.setdefault("history", [])
+        reply = await ai_reply.generate_reply("morning_lookforward", label, history)
         await context.bot.send_message(chat_id=chat_id, text=reply)
 
     elif kind == "sleep":

@@ -18,13 +18,14 @@ async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     chat_id = update.effective_chat.id
     text = update.message.text
     pending_prompt = context.chat_data.pop("pending_prompt", None)
+    history = context.chat_data.setdefault("history", [])
 
     if pending_prompt is not None:
         db.save_response(chat_id, pending_prompt, answer_text=text)
-        reply = await ai_reply.generate_reply(pending_prompt, text)
+        reply = await ai_reply.generate_reply(pending_prompt, text, history)
     else:
         # No scheduled prompt was waiting on this — just an anytime message.
-        reply = await ai_reply.generate_freeform_reply(text)
+        reply = await ai_reply.generate_freeform_reply(text, history)
 
     await update.message.reply_text(reply)
 
