@@ -33,9 +33,25 @@ SYSTEM_PROMPT = (
 # what it's replying to (the user only sees their own answer, not this).
 QUESTIONS = {
     "morning_lookforward": "What's one thing you're looking forward to today?",
+    "morning_mood": "How are you feeling as you start the day? They answered on a 1-5 scale.",
+    "morning_fuel": "What's getting you going this morning?",
+    "morning_energy": (
+        "How much energy do you have to start the day? They answered on a 1-5 scale."
+    ),
+    "morning_first_move": "What's the first thing you did after waking up?",
+    "morning_intention": "What kind of day are you hoping for?",
     "evening_highlight": "What was the highlight of your day?",
     "evening_gratitude": "3 things you're grateful for today?",
     "evening_hard": "What's one thing that felt hard today?",
+    "evening_mood": (
+        "How are you feeling right now, as the day wraps up? They answered on a 1-5 scale."
+    ),
+    "evening_wind_down": "How are you planning to wind down tonight?",
+    "evening_day_rating": (
+        "Looking back, how would you rate today overall? They answered on a 1-5 scale."
+    ),
+    "evening_biggest_win": "What's one win from today, big or small?",
+    "evening_tomorrow_focus": "What's one thing you want tomorrow to look like?",
 }
 
 

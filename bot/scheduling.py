@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from datetime import timezone as dt_timezone
 from zoneinfo import ZoneInfo
@@ -10,19 +11,145 @@ from bot import ai_reply, db
 
 logger = logging.getLogger(__name__)
 
-LOOKFORWARD_OPTIONS = [
-    ("Coffee", "coffee"),
-    ("Morning sun (Vitamin D)", "sun"),
-    ("Birds", "birds"),
-    ("Nature", "nature"),
-    ("Others", "other"),
+
+@dataclass(frozen=True)
+class ButtonOption:
+    label: str
+    value: str
+
+
+@dataclass(frozen=True)
+class ButtonsPrompt:
+    prompt_type: str
+    question: str
+    options: list[ButtonOption]
+
+
+@dataclass(frozen=True)
+class ScalePrompt:
+    prompt_type: str
+    question: str
+
+
+@dataclass(frozen=True)
+class TextPrompt:
+    prompt_type: str
+    question: str
+
+
+def _options(*pairs: tuple[str, str]) -> list[ButtonOption]:
+    return [ButtonOption(label, value) for label, value in pairs]
+
+
+# One prompt is sent per day, cycling through the list in order (wrapping
+# back to the start) — it doesn't try to line up with the day of the week.
+MORNING_PROMPTS = [
+    ButtonsPrompt(
+        "morning_lookforward",
+        "What's one thing you're looking forward to today?",
+        _options(
+            ("Coffee", "coffee"),
+            ("Morning sun (Vitamin D)", "sun"),
+            ("Birds", "birds"),
+            ("Nature", "nature"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt(
+        "morning_sleep",
+        "How'd you sleep last night? Science says good sleep resets your brain and "
+        "mood — how alert/rested are you feeling today? (1 = rough, 5 = great)",
+    ),
+    ScalePrompt("morning_mood", "How are you feeling as you start the day? (1 = rough, 5 = great)"),
+    ButtonsPrompt(
+        "morning_fuel",
+        "What's getting you going this morning?",
+        _options(
+            ("Coffee/Tea", "coffee_tea"),
+            ("Breakfast", "breakfast"),
+            ("Music", "music"),
+            ("A good night's rest", "rest"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt(
+        "morning_energy",
+        "How much energy do you have to start the day? "
+        "(1 = running on empty, 5 = fully charged)",
+    ),
+    ButtonsPrompt(
+        "morning_first_move",
+        "What's the first thing you did after waking up?",
+        _options(
+            ("Stretched", "stretched"),
+            ("Checked my phone", "phone"),
+            ("Made coffee/tea", "coffee_tea"),
+            ("Just laid there for a bit", "laid_there"),
+            ("Others", "other"),
+        ),
+    ),
+    ButtonsPrompt(
+        "morning_intention",
+        "What kind of day are you hoping for?",
+        _options(
+            ("Calm", "calm"),
+            ("Productive", "productive"),
+            ("Adventurous", "adventurous"),
+            ("Restful", "restful"),
+            ("Others", "other"),
+        ),
+    ),
 ]
 
 EVENING_PROMPTS = [
-    ("evening_highlight", "What was the highlight of your day?"),
-    ("evening_gratitude", "3 things you're grateful for today?"),
-    ("evening_hard", "What's one thing that felt hard today?"),
+    TextPrompt("evening_highlight", "What was the highlight of your day?"),
+    TextPrompt("evening_gratitude", "3 things you're grateful for today?"),
+    TextPrompt("evening_hard", "What's one thing that felt hard today?"),
+    ScalePrompt(
+        "evening_mood", "How are you feeling right now, as the day wraps up? (1 = rough, 5 = great)"
+    ),
+    ButtonsPrompt(
+        "evening_wind_down",
+        "How are you planning to wind down tonight?",
+        _options(
+            ("Reading", "reading"),
+            ("TV/Movies", "tv_movies"),
+            ("Music", "music"),
+            ("Early sleep", "early_sleep"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt(
+        "evening_day_rating",
+        "Looking back, how would you rate today overall? (1 = rough day, 5 = great day)",
+    ),
+    ButtonsPrompt(
+        "evening_biggest_win",
+        "What's one win from today, big or small?",
+        _options(
+            ("Finished a task", "finished_task"),
+            ("Connected with someone", "connected"),
+            ("Took care of myself", "self_care"),
+            ("Learned something", "learned"),
+            ("Others", "other"),
+        ),
+    ),
+    ButtonsPrompt(
+        "evening_tomorrow_focus",
+        "What's one thing you want tomorrow to look like?",
+        _options(
+            ("Restful", "restful"),
+            ("Productive", "productive"),
+            ("Social", "social"),
+            ("Adventurous", "adventurous"),
+            ("Others", "other"),
+        ),
+    ),
 ]
+
+PROMPTS_BY_TYPE: dict[str, ButtonsPrompt | ScalePrompt | TextPrompt] = {
+    prompt.prompt_type: prompt for prompt in [*MORNING_PROMPTS, *EVENING_PROMPTS]
+}
 
 
 def _tzinfo_from_stored(timezone_str: str):
@@ -39,59 +166,52 @@ def _day_index(tzinfo) -> int:
     return datetime.now(tzinfo).toordinal()
 
 
-async def send_morning_checkin(context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _send_prompt(context: ContextTypes.DEFAULT_TYPE, chat_id: int, prompt) -> None:
+    # Set even for button/scale prompts, not just free-text ones — this lets
+    # someone type their answer instead of tapping a button, and it still
+    # gets picked up as the answer to this prompt.
+    context.chat_data["pending_prompt"] = prompt.prompt_type
+
+    if isinstance(prompt, ButtonsPrompt):
+        buttons = [
+            InlineKeyboardButton(opt.label, callback_data=f"prompt:{prompt.prompt_type}:{opt.value}")
+            for opt in prompt.options
+        ]
+        rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+        await context.bot.send_message(
+            chat_id=chat_id, text=prompt.question, reply_markup=InlineKeyboardMarkup(rows)
+        )
+    elif isinstance(prompt, ScalePrompt):
+        keyboard = [
+            [
+                InlineKeyboardButton(str(n), callback_data=f"scale:{prompt.prompt_type}:{n}")
+                for n in range(1, 6)
+            ]
+        ]
+        await context.bot.send_message(
+            chat_id=chat_id, text=prompt.question, reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        await context.bot.send_message(chat_id=chat_id, text=prompt.question)
+
+
+async def _send_scheduled_checkin(context: ContextTypes.DEFAULT_TYPE, prompts: list) -> None:
     chat_id = context.job.chat_id
     user = db.get_user(chat_id)
     if user is None:
         return
 
     tzinfo = _tzinfo_from_stored(user["timezone"])
-    if _day_index(tzinfo) % 2 == 0:
-        await _send_lookforward_prompt(context, chat_id)
-    else:
-        await _send_sleep_prompt(context, chat_id)
+    prompt = prompts[_day_index(tzinfo) % len(prompts)]
+    await _send_prompt(context, chat_id, prompt)
 
 
-async def _send_lookforward_prompt(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
-    keyboard = [
-        [InlineKeyboardButton("Coffee", callback_data="lookforward:coffee"),
-         InlineKeyboardButton("Morning sun (Vitamin D)", callback_data="lookforward:sun")],
-        [InlineKeyboardButton("Birds", callback_data="lookforward:birds"),
-         InlineKeyboardButton("Nature", callback_data="lookforward:nature")],
-        [InlineKeyboardButton("Others", callback_data="lookforward:other")],
-    ]
-    context.chat_data["pending_prompt"] = "morning_lookforward"
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text="What's one thing you're looking forward to today?",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
-
-
-async def _send_sleep_prompt(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
-    keyboard = [[InlineKeyboardButton(str(n), callback_data=f"sleep:{n}") for n in range(1, 6)]]
-    context.chat_data["pending_prompt"] = "morning_sleep"
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=(
-            "How'd you sleep last night? Science says good sleep resets your brain and "
-            "mood — how alert/rested are you feeling today? (1 = rough, 5 = great)"
-        ),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+async def send_morning_checkin(context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _send_scheduled_checkin(context, MORNING_PROMPTS)
 
 
 async def send_evening_checkin(context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = context.job.chat_id
-    user = db.get_user(chat_id)
-    if user is None:
-        return
-
-    tzinfo = _tzinfo_from_stored(user["timezone"])
-    prompt_type, prompt_text = EVENING_PROMPTS[_day_index(tzinfo) % len(EVENING_PROMPTS)]
-
-    context.chat_data["pending_prompt"] = prompt_type
-    await context.bot.send_message(chat_id=chat_id, text=prompt_text)
+    await _send_scheduled_checkin(context, EVENING_PROMPTS)
 
 
 def _sleep_score_reply(score: int) -> str:
@@ -112,34 +232,54 @@ def _sleep_score_reply(score: int) -> str:
     )
 
 
+async def _handle_buttons_tap(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int, prompt_type: str, value: str
+) -> None:
+    query = update.callback_query
+    prompt = PROMPTS_BY_TYPE[prompt_type]
+
+    if value == "other":
+        context.chat_data["pending_prompt"] = prompt_type
+        await query.edit_message_text(f"{prompt.question}\n\nType it out \U0001F447")
+        return
+
+    label = next(opt.label for opt in prompt.options if opt.value == value)
+    db.save_response(chat_id, prompt_type, answer_text=label)
+    context.chat_data.pop("pending_prompt", None)
+    await query.edit_message_text(f"{prompt.question}\n\nYou picked: {label}")
+
+    history = context.chat_data.setdefault("history", [])
+    reply = await ai_reply.generate_reply(prompt_type, label, history)
+    await context.bot.send_message(chat_id=chat_id, text=reply)
+
+
+async def _handle_scale_tap(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int, prompt_type: str, score: int
+) -> None:
+    query = update.callback_query
+    prompt = PROMPTS_BY_TYPE[prompt_type]
+    db.save_response(chat_id, prompt_type, answer_score=score)
+    context.chat_data.pop("pending_prompt", None)
+    await query.edit_message_text(f"{prompt.question}\n\nYou rated it: {score}/5")
+
+    if prompt_type == "morning_sleep":
+        reply = _sleep_score_reply(score)
+    else:
+        history = context.chat_data.setdefault("history", [])
+        reply = await ai_reply.generate_reply(prompt_type, f"{score}/5", history)
+    await context.bot.send_message(chat_id=chat_id, text=reply)
+
+
 async def handle_button_tap(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     chat_id = query.message.chat_id
-    kind, value = query.data.split(":", 1)
+    kind, prompt_type, value = query.data.split(":", 2)
 
-    if kind == "lookforward":
-        if value == "other":
-            context.chat_data["pending_prompt"] = "morning_lookforward"
-            await query.edit_message_text("What are you looking forward to? Type it out \U0001F447")
-            return
-
-        label = next(label for label, key in LOOKFORWARD_OPTIONS if key == value)
-        db.save_response(chat_id, "morning_lookforward", answer_text=label)
-        context.chat_data.pop("pending_prompt", None)
-        await query.edit_message_text(
-            f"What's one thing you're looking forward to today?\n\nYou picked: {label}"
-        )
-        history = context.chat_data.setdefault("history", [])
-        reply = await ai_reply.generate_reply("morning_lookforward", label, history)
-        await context.bot.send_message(chat_id=chat_id, text=reply)
-
-    elif kind == "sleep":
-        score = int(value)
-        db.save_response(chat_id, "morning_sleep", answer_score=score)
-        context.chat_data.pop("pending_prompt", None)
-        await query.edit_message_text(f"How'd you sleep last night?\n\nYou rated it: {score}/5")
-        await context.bot.send_message(chat_id=chat_id, text=_sleep_score_reply(score))
+    if kind == "prompt":
+        await _handle_buttons_tap(update, context, chat_id, prompt_type, value)
+    elif kind == "scale":
+        await _handle_scale_tap(update, context, chat_id, prompt_type, int(value))
 
 
 def _cancel_existing_jobs(job_queue: JobQueue, name: str) -> None:
