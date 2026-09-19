@@ -51,7 +51,7 @@ MORNING_PROMPTS = [
         "What's one thing you're looking forward to today?",
         _options(
             ("Coffee", "coffee"),
-            ("Morning sun (Vitamin D)", "sun"),
+            ("Morning sun", "sun"),
             ("Birds", "birds"),
             ("Nature", "nature"),
             ("Others", "other"),
@@ -86,7 +86,7 @@ MORNING_PROMPTS = [
             ("Stretched", "stretched"),
             ("Checked my phone", "phone"),
             ("Made coffee/tea", "coffee_tea"),
-            ("Just laid there for a bit", "laid_there"),
+            ("Stayed in bed", "laid_there"),
             ("Others", "other"),
         ),
     ),
