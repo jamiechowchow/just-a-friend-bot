@@ -13,6 +13,13 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 # disk — no separate database server to install or run.
 DB_PATH = os.environ.get("DB_PATH", "just_a_friend.db")
 
+# Telegram chat IDs allowed to use admin-only commands like /stats.
+# Comma-separated, e.g. "111111,222222". Optional — /stats just won't
+# respond to anyone if this isn't set.
+ADMIN_CHAT_IDS = {
+    int(chat_id) for chat_id in os.environ.get("ADMIN_CHAT_IDS", "").split(",") if chat_id.strip()
+}
+
 if not TELEGRAM_BOT_TOKEN:
     raise RuntimeError(
         "TELEGRAM_BOT_TOKEN is not set. Copy .env.example to .env and fill it in."

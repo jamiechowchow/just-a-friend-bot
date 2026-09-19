@@ -114,6 +114,28 @@ def save_response(
         )
 
 
+def count_users() -> int:
+    with get_connection() as conn:
+        return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+
+def count_onboarded_users() -> int:
+    with get_connection() as conn:
+        return conn.execute(
+            """
+            SELECT COUNT(*) FROM users
+            WHERE timezone IS NOT NULL AND morning_time IS NOT NULL AND evening_time IS NOT NULL
+            """
+        ).fetchone()[0]
+
+
+def count_active_users_since(since_iso: str) -> int:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT COUNT(DISTINCT chat_id) FROM responses WHERE timestamp >= ?", (since_iso,)
+        ).fetchone()[0]
+
+
 def get_responses(chat_id: int, since_iso: str | None = None) -> list[sqlite3.Row]:
     with get_connection() as conn:
         if since_iso is None:

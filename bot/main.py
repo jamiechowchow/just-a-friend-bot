@@ -1,11 +1,19 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 
 from telegram import Update
-from telegram.ext import Application, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 from bot import ai_reply, db, scheduling
-from bot.config import TELEGRAM_BOT_TOKEN
+from bot.config import ADMIN_CHAT_IDS, TELEGRAM_BOT_TOKEN
 from bot.onboarding import onboarding_conversation, settings_conversation
 
 logging.basicConfig(
@@ -30,6 +38,21 @@ async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await update.message.reply_text(reply)
 
 
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat.id not in ADMIN_CHAT_IDS:
+        return  # Silent no-op for anyone who isn't an admin — no hint this command exists.
+
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    total = db.count_users()
+    onboarded = db.count_onboarded_users()
+    active = db.count_active_users_since(since)
+    await update.message.reply_text(
+        f"Total users: {total}\n"
+        f"Finished onboarding: {onboarded}\n"
+        f"Active in last 7 days: {active}"
+    )
+
+
 async def _post_init(application: Application) -> None:
     scheduling.schedule_all_users(application.job_queue)
 
@@ -50,6 +73,7 @@ def main() -> None:
     # them, so plain messages fall through to handle_free_text below.
     app.add_handler(onboarding_conversation)
     app.add_handler(settings_conversation)
+    app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CallbackQueryHandler(scheduling.handle_button_tap))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_free_text))
 
