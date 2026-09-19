@@ -128,7 +128,7 @@ EVENING_PROMPTS = [
         "What's one win from today, big or small?",
         _options(
             ("Finished a task", "finished_task"),
-            ("Connected with someone", "connected"),
+            ("Talked to someone", "connected"),
             ("Took care of myself", "self_care"),
             ("Learned something", "learned"),
             ("Others", "other"),
