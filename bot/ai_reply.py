@@ -18,6 +18,48 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
+CRISIS_RESOURCES = (
+    "\U0001F4DE Samaritans of Singapore (SOS), 24/7: 1767\n"
+    "\U0001F4AC SOS CareText (WhatsApp), 24/7: 9151 1767\n"
+    "\U0001F4DE National Mindline, 24/7: 1771\n"
+    "\U0001F4DE Mental Health Helpline (IMH): 6389 2222\n\n"
+    "If you're in immediate danger, please call 999."
+)
+
+# Used only as a deterministic backstop for the most explicit, unambiguous
+# phrases — not the primary detector (see the system prompt instruction
+# below for the nuanced/implicit cases). This guarantees these specific
+# phrases always get the safety response, even if the Claude call below
+# fails and would otherwise fall back to a generic, tone-deaf reply.
+CRISIS_KEYWORDS = [
+    "kill myself",
+    "killing myself",
+    "end my life",
+    "ending my life",
+    "want to die",
+    "wanna die",
+    "suicidal",
+    "suicide",
+    "don't want to live",
+    "not worth living",
+    "self harm",
+    "self-harm",
+    "hurt myself",
+    "hurting myself",
+]
+
+CRISIS_RESPONSE = (
+    "That sounds like a lot to carry, and I'm really glad you told me \U0001F49B I'm not "
+    "able to give you the kind of support you deserve here, though — please reach out to "
+    "people trained for this:\n\n" + CRISIS_RESOURCES + "\n\nYou don't have to go through this alone."
+)
+
+
+def _mentions_crisis(text: str) -> bool:
+    lowered = text.lower()
+    return any(keyword in lowered for keyword in CRISIS_KEYWORDS)
+
+
 SYSTEM_PROMPT = (
     'You are "Just A Friend", a warm, casual companion chatting with someone you '
     "know well. Reply like a close friend texting back — 1 to 3 short sentences, "
@@ -28,7 +70,13 @@ SYSTEM_PROMPT = (
     "actual curiosity, not a follow-up form. Vary how you open each reply; don't lean "
     'on the same one or two phrases ("Ooh", "Aw", "Nice, glad...") across a '
     "conversation. Keep it grounded, not overly hyped — a real friend reacts warmly "
-    "without gushing."
+    "without gushing.\n\n"
+    "If someone's message suggests real distress, hopelessness, or any hint of self-harm "
+    "or suicidal thoughts — even if not stated directly, just implied by tone or meaning — "
+    "set the usual casual style aside. Respond warmly first, without being overly agreeing "
+    "or disagreeing with how they're feeling, then clearly point them to real support. "
+    "Don't try to counsel them yourself or talk them out of it — always defer to these "
+    "resources instead:\n\n" + CRISIS_RESOURCES
 )
 
 # Plain-language version of each scheduled prompt, so Claude has context for
@@ -96,6 +144,14 @@ def _build_recent_history_context(chat_id: int) -> str | None:
 
 
 async def _generate(chat_id: int, user_turn: str) -> str:
+    if _mentions_crisis(user_turn):
+        db.append_conversation_turns(
+            chat_id,
+            [("user", user_turn), ("assistant", CRISIS_RESPONSE)],
+            keep_last=MAX_HISTORY_MESSAGES,
+        )
+        return CRISIS_RESPONSE
+
     history = db.get_conversation_history(chat_id, MAX_HISTORY_MESSAGES)
 
     system_parts = [SYSTEM_PROMPT]
