@@ -66,6 +66,18 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS crisis_followups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                trigger_text TEXT NOT NULL,
+                due_at TEXT NOT NULL,
+                sent_at TEXT,
+                FOREIGN KEY (chat_id) REFERENCES users (chat_id)
+            )
+            """
+        )
 
 
 def create_user_if_missing(chat_id: int) -> None:
@@ -107,6 +119,33 @@ def update_user_settings(
 def list_users() -> list[sqlite3.Row]:
     with get_connection() as conn:
         return conn.execute("SELECT * FROM users ORDER BY created_at").fetchall()
+
+
+def schedule_crisis_followup(chat_id: int, trigger_text: str, due_at_iso: str) -> None:
+    create_user_if_missing(chat_id)
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO crisis_followups (chat_id, trigger_text, due_at, sent_at)
+            VALUES (?, ?, ?, NULL)
+            """,
+            (chat_id, trigger_text, due_at_iso),
+        )
+
+
+def get_due_crisis_followups(now_iso: str) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM crisis_followups WHERE due_at <= ? AND sent_at IS NULL", (now_iso,)
+        ).fetchall()
+
+
+def mark_crisis_followup_sent(followup_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE crisis_followups SET sent_at = ? WHERE id = ?",
+            (datetime.now(timezone.utc).isoformat(), followup_id),
+        )
 
 
 def get_user(chat_id: int) -> sqlite3.Row | None:

@@ -232,6 +232,24 @@ def _sleep_score_reply(score: int) -> str:
     )
 
 
+def maybe_schedule_crisis_followup(chat_id: int, trigger_text: str, reply: str) -> None:
+    if not ai_reply.is_crisis_reply(reply):
+        return
+    due_at = (
+        datetime.now(dt_timezone.utc) + timedelta(days=ai_reply.CRISIS_FOLLOWUP_DELAY_DAYS)
+    ).isoformat()
+    db.schedule_crisis_followup(chat_id, trigger_text, due_at)
+
+
+async def check_crisis_followups(context: ContextTypes.DEFAULT_TYPE) -> None:
+    now = datetime.now(dt_timezone.utc).isoformat()
+    for followup in db.get_due_crisis_followups(now):
+        await context.bot.send_message(
+            chat_id=followup["chat_id"], text=ai_reply.CRISIS_FOLLOWUP_MESSAGE
+        )
+        db.mark_crisis_followup_sent(followup["id"])
+
+
 async def _handle_buttons_tap(
     update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int, prompt_type: str, value: str
 ) -> None:
@@ -249,6 +267,7 @@ async def _handle_buttons_tap(
     await query.edit_message_text(f"{prompt.question}\n\nYou picked: {label}")
 
     reply = await ai_reply.generate_reply(prompt_type, label, chat_id)
+    maybe_schedule_crisis_followup(chat_id, label, reply)
     await context.bot.send_message(chat_id=chat_id, text=reply)
 
 
@@ -265,6 +284,7 @@ async def _handle_scale_tap(
         reply = _sleep_score_reply(score)
     else:
         reply = await ai_reply.generate_reply(prompt_type, f"{score}/5", chat_id)
+        maybe_schedule_crisis_followup(chat_id, f"{score}/5", reply)
     await context.bot.send_message(chat_id=chat_id, text=reply)
 
 

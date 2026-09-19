@@ -60,6 +60,26 @@ def _mentions_crisis(text: str) -> bool:
     return any(keyword in lowered for keyword in CRISIS_KEYWORDS)
 
 
+# How long after a crisis response to send one direct, one-time follow-up —
+# not a repeated check-in, just a single "I didn't forget" message.
+CRISIS_FOLLOWUP_DELAY_DAYS = 2
+
+CRISIS_FOLLOWUP_MESSAGE = (
+    "Hey, I wanted to check back in directly. A couple of days ago you mentioned something "
+    "that sounded really heavy, and I didn't want to just let that pass without following up. "
+    "How are you doing now, really?\n\n"
+    "If things are still hard, please don't sit with it alone:\n\n" + CRISIS_RESOURCES
+)
+
+
+def is_crisis_reply(reply: str) -> bool:
+    # "1767" only ever appears in CRISIS_RESOURCES, whether the fixed
+    # CRISIS_RESPONSE fired or Claude generated its own safety response
+    # per the system prompt instruction — a reliable signal either way,
+    # even if Claude paraphrases the surrounding wording.
+    return "1767" in reply
+
+
 SYSTEM_PROMPT = (
     'You are "Just A Friend", a warm, casual companion chatting with someone you '
     "know well. Reply like a close friend texting back — 1 to 3 short sentences, "

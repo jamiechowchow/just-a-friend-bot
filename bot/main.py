@@ -34,6 +34,7 @@ async def handle_free_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         # No scheduled prompt was waiting on this — just an anytime message.
         reply = await ai_reply.generate_freeform_reply(text, chat_id)
 
+    scheduling.maybe_schedule_crisis_followup(chat_id, text, reply)
     await update.message.reply_text(reply)
 
 
@@ -72,6 +73,13 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def _post_init(application: Application) -> None:
     scheduling.schedule_all_users(application.job_queue)
+    # Source of truth for "is a crisis follow-up due" lives in the database
+    # (see db.schedule_crisis_followup), not in this job's own timer — so a
+    # redeploy between now and when one comes due can't lose it. This just
+    # sweeps for anything that's become due since the last check.
+    application.job_queue.run_repeating(
+        scheduling.check_crisis_followups, interval=timedelta(minutes=30), first=10
+    )
 
 
 def main() -> None:
