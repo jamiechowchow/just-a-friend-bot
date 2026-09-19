@@ -1,4 +1,5 @@
 import logging
+import random
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from datetime import timezone as dt_timezone
@@ -41,8 +42,9 @@ def _options(*pairs: tuple[str, str]) -> list[ButtonOption]:
     return [ButtonOption(label, value) for label, value in pairs]
 
 
-# One prompt is sent per day, cycling through the list in order (wrapping
-# back to the start) — it doesn't try to line up with the day of the week.
+# Each user gets their own randomized order that cycles through every
+# prompt exactly once before any repeat (see _prompt_for_day) — this list's
+# own ordering doesn't matter for that, only its contents.
 MORNING_PROMPTS = [
     ButtonsPrompt(
         "morning_lookforward",
@@ -99,6 +101,147 @@ MORNING_PROMPTS = [
             ("Others", "other"),
         ),
     ),
+    # Self-care
+    ButtonsPrompt(
+        "morning_selfcare_action",
+        "What's one small way you'll take care of yourself today?",
+        _options(
+            ("Rest", "rest"),
+            ("Hydrate", "hydrate"),
+            ("Move my body", "move"),
+            ("Eat well", "eat_well"),
+            ("Others", "other"),
+        ),
+    ),
+    ButtonsPrompt(
+        "morning_boundary",
+        "Is there a boundary you need to hold today?",
+        _options(
+            ("Say no", "say_no"),
+            ("Protect my time", "protect_time"),
+            ("Ask for space", "ask_space"),
+            ("Not today", "not_today"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt("morning_rest_quality", "How rested do you feel, beyond just sleep hours? (1 = depleted, 5 = recharged)"),
+    # Self-love
+    ButtonsPrompt(
+        "morning_selflove_action",
+        "What's one kind thing you could do for yourself today?",
+        _options(
+            ("Compliment myself", "compliment"),
+            ("Rest, no guilt", "rest_no_guilt"),
+            ("Treat myself", "treat"),
+            ("Forgive myself", "forgive"),
+            ("Others", "other"),
+        ),
+    ),
+    TextPrompt("morning_proud_of", "What's something about yourself you're proud of right now?"),
+    ButtonsPrompt(
+        "morning_gratitude",
+        "What's one thing about your life you're grateful for?",
+        _options(
+            ("Kinship", "kinship"),
+            ("Work", "work"),
+            ("Friendship", "friendship"),
+            ("Your Pet", "pet"),
+            ("Others", "other"),
+        ),
+    ),
+    # Motivational
+    ButtonsPrompt(
+        "morning_motivation_source",
+        "What's motivating you today?",
+        _options(
+            ("A goal", "goal"),
+            ("Someone I love", "someone_i_love"),
+            ("Prove myself", "prove_myself"),
+            ("Just today", "just_today"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt("morning_confidence", "How confident are you feeling about today? (1 = shaky, 5 = unstoppable)"),
+    TextPrompt("morning_push_through", "What's one thing you're going to push through today?"),
+    # Inspiration
+    TextPrompt("morning_inspired_by", "Who or what is inspiring you lately?"),
+    ButtonsPrompt(
+        "morning_curiosity_spark",
+        "What's sparking your curiosity today?",
+        _options(
+            ("A new idea", "new_idea"),
+            ("A person", "person"),
+            ("A place", "place"),
+            ("Not yet", "not_yet"),
+            ("Others", "other"),
+        ),
+    ),
+    TextPrompt("morning_dream_big", "If nothing could go wrong today, what would you attempt?"),
+    # Uplifting
+    TextPrompt("morning_guaranteed_smile", "What's something guaranteed to make you smile today?"),
+    ButtonsPrompt(
+        "morning_mood_lifter",
+        "What usually lifts your mood fastest?",
+        _options(
+            ("Music", "music"),
+            ("A good laugh", "laugh"),
+            ("Sunshine", "sunshine"),
+            ("A chat", "chat"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt("morning_optimism", "How optimistic are you feeling about today? (1 = not very, 5 = very)"),
+    # Wellness
+    ScalePrompt("morning_body_checkin", "How does your body feel this morning? (1 = achy/tired, 5 = strong/loose)"),
+    ButtonsPrompt(
+        "morning_hydration_plan",
+        "What's the plan for staying hydrated today?",
+        _options(
+            ("Water ready", "water_ready"),
+            ("Coffee/tea", "coffee_tea"),
+            ("I'll try", "ill_try"),
+            ("Already on it", "already_on_it"),
+            ("Others", "other"),
+        ),
+    ),
+    ButtonsPrompt(
+        "morning_movement_plan",
+        "Any movement planned today?",
+        _options(
+            ("Workout", "workout"),
+            ("Walk", "walk"),
+            ("Stretch", "stretch"),
+            ("Rest day", "rest_day"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt("morning_stress_level", "How's your stress level feeling right now? (1 = very stressed, 5 = very calm)"),
+    ButtonsPrompt(
+        "morning_breakfast_plan",
+        "What's on the menu for breakfast?",
+        _options(
+            ("Something hearty", "hearty"),
+            ("Something light", "light"),
+            ("Skipping it", "skipping"),
+            ("Deciding", "deciding"),
+            ("Others", "other"),
+        ),
+    ),
+    # Reflection / affirmation
+    TextPrompt("morning_pep_talk", "Write yourself a one-line pep talk for today."),
+    ButtonsPrompt(
+        "morning_need_to_hear",
+        "What do you need to hear this morning?",
+        _options(
+            ("You're enough", "youre_enough"),
+            ("Okay to rest", "okay_to_rest"),
+            ("You've got this", "youve_got_this"),
+            ("Progress > perfect", "progress"),
+            ("Others", "other"),
+        ),
+    ),
+    TextPrompt("morning_small_joy", "What's one small thing you're looking forward to enjoying today?"),
+    ScalePrompt("morning_growth_check", "How much are you growing/learning lately, would you say? (1 = stuck, 5 = thriving)"),
 ]
 
 EVENING_PROMPTS = [
@@ -145,6 +288,118 @@ EVENING_PROMPTS = [
             ("Others", "other"),
         ),
     ),
+    # Stoic self-review
+    TextPrompt("evening_resisted_habit", "What's one bad habit or urge you resisted today?"),
+    ButtonsPrompt(
+        "evening_virtue",
+        "What virtue did you lean on most today?",
+        _options(
+            ("Patience", "patience"),
+            ("Courage", "courage"),
+            ("Kindness", "kindness"),
+            ("Discipline", "discipline"),
+            ("Others", "other"),
+        ),
+    ),
+    TextPrompt("evening_fell_short", "Where do you feel you fell short today, without judging yourself for it?"),
+    # Letting go
+    ButtonsPrompt(
+        "evening_leave_behind",
+        "What's one thing you're ready to leave behind before you sleep?",
+        _options(
+            ("A worry", "worry"),
+            ("A conversation", "conversation"),
+            ("A mistake", "mistake"),
+            ("Nothing tonight", "nothing"),
+            ("Others", "other"),
+        ),
+    ),
+    ScalePrompt("evening_tension_level", "How much tension are you still carrying right now? (1 = a lot, 5 = none)"),
+    ButtonsPrompt(
+        "evening_let_go_method",
+        "What would help you let go of today?",
+        _options(
+            ("Deep breath", "deep_breath"),
+            ("Writing it out", "writing"),
+            ("Talking to someone", "talking"),
+            ("Just sleep", "sleep"),
+            ("Others", "other"),
+        ),
+    ),
+    # Lessons & growth
+    TextPrompt("evening_lesson", "What's one lesson today tried to teach you?"),
+    TextPrompt("evening_friend_advice", "What would you tell a friend who had the exact day you did?"),
+    ScalePrompt("evening_growth_scale", "How much did you grow or learn today, even in a small way? (1 = not much, 5 = a lot)"),
+    # Self-compassion
+    ButtonsPrompt(
+        "evening_self_treatment",
+        "How did you treat yourself today?",
+        _options(
+            ("Gently", "gently"),
+            ("A bit harsh", "harsh"),
+            ("In between", "in_between"),
+            ("Didn't notice", "didnt_notice"),
+            ("Others", "other"),
+        ),
+    ),
+    TextPrompt("evening_gentler_about", "What's one thing you'd like to be gentler with yourself about?"),
+    ScalePrompt("evening_self_compassion_scale", "How much self-compassion did you show yourself today? (1 = not much, 5 = a lot)"),
+    # Connection
+    ButtonsPrompt(
+        "evening_who_helped",
+        "Who made today a little better?",
+        _options(
+            ("A friend", "friend"),
+            ("Family", "family"),
+            ("A stranger", "stranger"),
+            ("No one really", "no_one"),
+            ("Others", "other"),
+        ),
+    ),
+    ButtonsPrompt(
+        "evening_kindness_given_received",
+        "Did you give or receive any kindness today?",
+        _options(
+            ("Gave it", "gave"),
+            ("Received it", "received"),
+            ("Both", "both"),
+            ("Neither today", "neither"),
+            ("Others", "other"),
+        ),
+    ),
+    TextPrompt("evening_reach_out_tomorrow", "Is there anyone you're thinking of reaching out to tomorrow?"),
+    # Presence & mindfulness
+    TextPrompt("evening_present_moment", "What's a moment today you felt fully present in?"),
+    TextPrompt("evening_small_notice", "What's something small you noticed today that you'd normally miss?"),
+    TextPrompt("evening_kindness_statement", "Describe a moment today when you were kind to a stranger or to yourself."),
+    # Closure & winding down
+    TextPrompt("evening_one_word", "If today had one word, what would it be?"),
+    ButtonsPrompt(
+        "evening_ready_tomorrow",
+        "How ready do you feel for tomorrow?",
+        _options(
+            ("Bring it on", "bring_it_on"),
+            ("A bit anxious", "anxious"),
+            ("Neutral", "neutral"),
+            ("Need more rest", "need_rest"),
+            ("Others", "other"),
+        ),
+    ),
+    ButtonsPrompt(
+        "evening_winddown_thoughts",
+        "What's on your mind as you wind down?",
+        _options(
+            ("Tomorrow's plans", "tomorrows_plans"),
+            ("Loose ends", "loose_ends"),
+            ("Replaying today", "replaying"),
+            ("Nothing much", "nothing_much"),
+            ("Others", "other"),
+        ),
+    ),
+    # Values & meaning
+    ScalePrompt("evening_alignment_scale", "How aligned did today feel with what actually matters to you? (1 = not at all, 5 = very)"),
+    TextPrompt("evening_felt_right", "What's one thing you did today just because it felt right, not because you had to?"),
+    TextPrompt("evening_curious_before_sleep", "What are you curious about as you fall asleep tonight?"),
 ]
 
 PROMPTS_BY_TYPE: dict[str, ButtonsPrompt | ScalePrompt | TextPrompt] = {
@@ -195,6 +450,20 @@ async def _send_prompt(context: ContextTypes.DEFAULT_TYPE, chat_id: int, prompt)
         await context.bot.send_message(chat_id=chat_id, text=prompt.question)
 
 
+def _prompt_for_day(chat_id: int, day_index: int, prompts: list):
+    # Each user gets their own randomized order that runs through every
+    # prompt exactly once before repeating, rather than everyone seeing the
+    # same prompt on the same day. The order is deterministic (seeded from
+    # chat_id + which cycle we're in) rather than stored anywhere, so it's
+    # stable across restarts without needing extra database state.
+    n = len(prompts)
+    cycle_number = day_index // n
+    position = day_index % n
+    order = list(range(n))
+    random.Random(hash((chat_id, cycle_number))).shuffle(order)
+    return prompts[order[position]]
+
+
 async def _send_scheduled_checkin(context: ContextTypes.DEFAULT_TYPE, prompts: list) -> None:
     chat_id = context.job.chat_id
     user = db.get_user(chat_id)
@@ -202,7 +471,7 @@ async def _send_scheduled_checkin(context: ContextTypes.DEFAULT_TYPE, prompts: l
         return
 
     tzinfo = _tzinfo_from_stored(user["timezone"])
-    prompt = prompts[_day_index(tzinfo) % len(prompts)]
+    prompt = _prompt_for_day(chat_id, _day_index(tzinfo), prompts)
     await _send_prompt(context, chat_id, prompt)
 
 

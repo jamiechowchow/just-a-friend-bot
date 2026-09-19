@@ -125,6 +125,90 @@ QUESTIONS = {
     # Not used for generate_reply (sleep replies are fixed-text, not Claude-written) —
     # only needed to label this prompt type in the recent-history context below.
     "morning_sleep": "How they slept last night (they answered on a 1-5 scale)",
+    # Morning: self-care
+    "morning_selfcare_action": "What's one small way you'll take care of yourself today?",
+    "morning_boundary": "Is there a boundary you need to hold today?",
+    "morning_rest_quality": (
+        "How rested do you feel, beyond just sleep hours? They answered on a 1-5 scale."
+    ),
+    # Morning: self-love
+    "morning_selflove_action": "What's one kind thing you could do for yourself today?",
+    "morning_proud_of": "What's something about yourself you're proud of right now?",
+    "morning_gratitude": "What's one thing about your life you're grateful for?",
+    # Morning: motivational
+    "morning_motivation_source": "What's motivating you today?",
+    "morning_confidence": (
+        "How confident are you feeling about today? They answered on a 1-5 scale."
+    ),
+    "morning_push_through": "What's one thing you're going to push through today?",
+    # Morning: inspiration
+    "morning_inspired_by": "Who or what is inspiring you lately?",
+    "morning_curiosity_spark": "What's sparking your curiosity today?",
+    "morning_dream_big": "If nothing could go wrong today, what would you attempt?",
+    # Morning: uplifting
+    "morning_guaranteed_smile": "What's something guaranteed to make you smile today?",
+    "morning_mood_lifter": "What usually lifts your mood fastest?",
+    "morning_optimism": "How optimistic are you feeling about today? They answered on a 1-5 scale.",
+    # Morning: wellness
+    "morning_body_checkin": "How does your body feel this morning? They answered on a 1-5 scale.",
+    "morning_hydration_plan": "What's the plan for staying hydrated today?",
+    "morning_movement_plan": "Any movement planned today?",
+    "morning_stress_level": (
+        "How's your stress level feeling right now? They answered on a 1-5 scale."
+    ),
+    "morning_breakfast_plan": "What's on the menu for breakfast?",
+    # Morning: reflection / affirmation
+    "morning_pep_talk": "Write yourself a one-line pep talk for today.",
+    "morning_need_to_hear": "What do you need to hear this morning?",
+    "morning_small_joy": "What's one small thing you're looking forward to enjoying today?",
+    "morning_growth_check": (
+        "How much are you growing/learning lately, would you say? They answered on a 1-5 scale."
+    ),
+    # Evening: Stoic self-review
+    "evening_resisted_habit": "What's one bad habit or urge you resisted today?",
+    "evening_virtue": "What virtue did you lean on most today?",
+    "evening_fell_short": "Where do you feel you fell short today, without judging yourself for it?",
+    # Evening: letting go
+    "evening_leave_behind": "What's one thing you're ready to leave behind before you sleep?",
+    "evening_tension_level": (
+        "How much tension are you still carrying right now? They answered on a 1-5 scale."
+    ),
+    "evening_let_go_method": "What would help you let go of today?",
+    # Evening: lessons & growth
+    "evening_lesson": "What's one lesson today tried to teach you?",
+    "evening_friend_advice": "What would you tell a friend who had the exact day you did?",
+    "evening_growth_scale": (
+        "How much did you grow or learn today, even in a small way? They answered on a 1-5 scale."
+    ),
+    # Evening: self-compassion
+    "evening_self_treatment": "How did you treat yourself today?",
+    "evening_gentler_about": "What's one thing you'd like to be gentler with yourself about?",
+    "evening_self_compassion_scale": (
+        "How much self-compassion did you show yourself today? They answered on a 1-5 scale."
+    ),
+    # Evening: connection
+    "evening_who_helped": "Who made today a little better?",
+    "evening_kindness_given_received": "Did you give or receive any kindness today?",
+    "evening_reach_out_tomorrow": "Is there anyone you're thinking of reaching out to tomorrow?",
+    # Evening: presence & mindfulness
+    "evening_present_moment": "What's a moment today you felt fully present in?",
+    "evening_small_notice": "What's something small you noticed today that you'd normally miss?",
+    "evening_kindness_statement": (
+        "Describe a moment today when you were kind to a stranger or to yourself."
+    ),
+    # Evening: closure & winding down
+    "evening_one_word": "If today had one word, what would it be?",
+    "evening_ready_tomorrow": "How ready do you feel for tomorrow?",
+    "evening_winddown_thoughts": "What's on your mind as you wind down?",
+    # Evening: values & meaning
+    "evening_alignment_scale": (
+        "How aligned did today feel with what actually matters to you? "
+        "They answered on a 1-5 scale."
+    ),
+    "evening_felt_right": (
+        "What's one thing you did today just because it felt right, not because you had to?"
+    ),
+    "evening_curious_before_sleep": "What are you curious about as you fall asleep tonight?",
 }
 
 
