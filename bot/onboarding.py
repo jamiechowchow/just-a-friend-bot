@@ -1,4 +1,5 @@
 import logging
+import re
 
 from telegram import Update
 from telegram.ext import (
@@ -14,15 +15,48 @@ from bot.time_parsing import parse_time_of_day, parse_timezone
 
 logger = logging.getLogger(__name__)
 
-ASK_TIMEZONE, ASK_MORNING_TIME, ASK_EVENING_TIME = range(3)
+ASK_NAME, ASK_EMAIL, ASK_TIMEZONE, ASK_MORNING_TIME, ASK_EVENING_TIME = range(5)
+
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _is_valid_email(text: str) -> bool:
+    return bool(_EMAIL_PATTERN.match(text))
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     db.create_user_if_missing(update.effective_chat.id)
     await update.message.reply_text(
         "Hey! I'm Just A Friend \U0001F44B I'll check in with you every morning and evening, "
-        "like a friend would. Let's get you set up — takes about 30 seconds.\n\n"
-        "First: what time zone are you in? Type a city-based name like "
+        "like a friend would. Let's get you set up — takes about a minute.\n\n"
+        "I'll also grab your name and email so I can personalize things — just between us.\n\n"
+        "First, what should I call you?"
+    )
+    return ASK_NAME
+
+
+async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    name = update.message.text.strip()
+    if not name:
+        await update.message.reply_text("Didn't quite catch that — what's your name?")
+        return ASK_NAME
+
+    context.user_data["name"] = name
+    await update.message.reply_text(f"Nice to meet you, {name}! What's your email address?")
+    return ASK_EMAIL
+
+
+async def receive_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    email = update.message.text.strip()
+    if not _is_valid_email(email):
+        await update.message.reply_text(
+            "That doesn't look like a valid email — mind trying again? (e.g. name@example.com)"
+        )
+        return ASK_EMAIL
+
+    context.user_data["email"] = email
+    await update.message.reply_text(
+        "Got it. Now, what time zone are you in? Type a city-based name like "
         '"America/New_York" or "Asia/Singapore", or a UTC offset like "UTC-5".'
     )
     return ASK_TIMEZONE
@@ -70,6 +104,8 @@ async def receive_evening_time(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = update.effective_chat.id
     db.update_user_settings(
         chat_id,
+        name=context.user_data.get("name"),
+        email=context.user_data.get("email"),
         timezone_name=context.user_data.get("timezone"),
         morning_time=context.user_data.get("morning_time"),
         evening_time=time_str,
@@ -78,8 +114,9 @@ async def receive_evening_time(update: Update, context: ContextTypes.DEFAULT_TYP
     scheduling.schedule_user_jobs(context.job_queue, chat_id)
 
     user = db.get_user(chat_id)
+    greeting = f"All set, {user['name']}!" if user["name"] else "All set!"
     await update.message.reply_text(
-        f"All set! I'll check in around {user['morning_time']} and {user['evening_time']} "
+        f"{greeting} I'll check in around {user['morning_time']} and {user['evening_time']} "
         f"your time ({user['timezone']}). You can change this anytime with /settings.\n\n"
         "Talk soon \U0001F49B"
     )
@@ -111,6 +148,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 onboarding_conversation = ConversationHandler(
     entry_points=[CommandHandler("start", start)],
     states={
+        ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_name)],
+        ASK_EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_email)],
         ASK_TIMEZONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_timezone)],
         ASK_MORNING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_morning_time)],
         ASK_EVENING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_evening_time)],

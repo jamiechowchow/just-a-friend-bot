@@ -97,10 +97,18 @@ def _build_recent_history_context(chat_id: int) -> str | None:
 
 async def _generate(chat_id: int, user_turn: str) -> str:
     history = db.get_conversation_history(chat_id, MAX_HISTORY_MESSAGES)
-    system = SYSTEM_PROMPT
+
+    system_parts = [SYSTEM_PROMPT]
+    user = db.get_user(chat_id)
+    if user and user["name"]:
+        system_parts.append(
+            f"Their name is {user['name']}. You can address them by name occasionally when it "
+            "feels natural, but don't force it into every reply."
+        )
     recent_history_context = _build_recent_history_context(chat_id)
     if recent_history_context:
-        system = f"{SYSTEM_PROMPT}\n\n{recent_history_context}"
+        system_parts.append(recent_history_context)
+    system = "\n\n".join(system_parts)
 
     messages = [*history, {"role": "user", "content": user_turn}]
     try:
