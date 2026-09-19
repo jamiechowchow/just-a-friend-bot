@@ -170,9 +170,19 @@ def count_onboarded_users() -> int:
 
 
 def count_active_users_since(since_iso: str) -> int:
+    # "Active" means any interaction at all — a check-in answer (responses)
+    # or a plain chat message (conversation_turns) — not just structured
+    # check-in answers.
     with get_connection() as conn:
         return conn.execute(
-            "SELECT COUNT(DISTINCT chat_id) FROM responses WHERE timestamp >= ?", (since_iso,)
+            """
+            SELECT COUNT(*) FROM (
+                SELECT chat_id FROM responses WHERE timestamp >= ?
+                UNION
+                SELECT chat_id FROM conversation_turns WHERE created_at >= ? AND role = 'user'
+            )
+            """,
+            (since_iso, since_iso),
         ).fetchone()[0]
 
 
