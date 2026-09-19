@@ -18,10 +18,19 @@ logger = logging.getLogger(__name__)
 ASK_NAME, ASK_EMAIL, ASK_TIMEZONE, ASK_MORNING_TIME, ASK_EVENING_TIME = range(5)
 
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_NAME_PREFIX_PATTERN = re.compile(r"^(my name is|i'm|i am|call me|it's|this is)\s+", re.IGNORECASE)
 
 
 def _is_valid_email(text: str) -> bool:
     return bool(_EMAIL_PATTERN.match(text))
+
+
+def _clean_name(text: str) -> str:
+    # People often answer in a full sentence ("My name is Sam") rather than
+    # just the name — strip the common lead-ins so we don't store the whole
+    # sentence as their name.
+    cleaned = _NAME_PREFIX_PATTERN.sub("", text).strip().rstrip(".!")
+    return cleaned or text
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -36,7 +45,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def receive_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    name = update.message.text.strip()
+    name = _clean_name(update.message.text.strip())
     if not name:
         await update.message.reply_text("Didn't quite catch that — what's your name?")
         return ASK_NAME

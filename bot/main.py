@@ -52,6 +52,24 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
+async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat.id not in ADMIN_CHAT_IDS:
+        return
+
+    users = db.list_users()
+    if not users:
+        await update.message.reply_text("No users yet.")
+        return
+
+    lines = []
+    for user in users:
+        name = user["name"] or "(no name)"
+        email = user["email"] or "(no email)"
+        joined = user["created_at"][:10]
+        lines.append(f"{name} — {email} — joined {joined} — chat_id {user['chat_id']}")
+    await update.message.reply_text("\n".join(lines))
+
+
 async def _post_init(application: Application) -> None:
     scheduling.schedule_all_users(application.job_queue)
 
@@ -73,6 +91,7 @@ def main() -> None:
     app.add_handler(onboarding_conversation)
     app.add_handler(settings_conversation)
     app.add_handler(CommandHandler("stats", stats_command))
+    app.add_handler(CommandHandler("users", users_command))
     app.add_handler(CallbackQueryHandler(scheduling.handle_button_tap))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_free_text))
 

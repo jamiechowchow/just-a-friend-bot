@@ -104,6 +104,11 @@ def update_user_settings(
             )
 
 
+def list_users() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM users ORDER BY created_at").fetchall()
+
+
 def get_user(chat_id: int) -> sqlite3.Row | None:
     with get_connection() as conn:
         return conn.execute(
