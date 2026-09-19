@@ -15,7 +15,7 @@ from bot.time_parsing import parse_time_of_day, parse_timezone
 
 logger = logging.getLogger(__name__)
 
-ASK_NAME, ASK_EMAIL, ASK_TIMEZONE, ASK_MORNING_TIME, ASK_EVENING_TIME = range(5)
+ASK_NAME, ASK_EMAIL, ASK_TIMEZONE, ASK_MORNING_TIME, ASK_EVENING_TIME, ASK_NEW_NAME = range(6)
 
 _EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _NAME_PREFIX_PATTERN = re.compile(r"^(my name is|i'm|i am|call me|it's|this is)\s+", re.IGNORECASE)
@@ -148,6 +148,29 @@ async def settings_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     return ASK_MORNING_TIME
 
 
+async def rename_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = db.get_user(update.effective_chat.id)
+    if user is None or user["timezone"] is None:
+        await update.message.reply_text(
+            "Looks like we haven't set you up yet — send /start first to get going!"
+        )
+        return ConversationHandler.END
+
+    await update.message.reply_text("Sure — what would you like me to call you?")
+    return ASK_NEW_NAME
+
+
+async def receive_new_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    name = _clean_name(update.message.text.strip())
+    if not name:
+        await update.message.reply_text("Didn't quite catch that — what should I call you?")
+        return ASK_NEW_NAME
+
+    db.update_user_settings(update.effective_chat.id, name=name)
+    await update.message.reply_text(f"Got it, I'll call you {name} from now on \U0001F49B")
+    return ConversationHandler.END
+
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     await update.message.reply_text("No worries, we can pick this up later.")
@@ -171,6 +194,14 @@ settings_conversation = ConversationHandler(
     states={
         ASK_MORNING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_morning_time)],
         ASK_EVENING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_evening_time)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+)
+
+rename_conversation = ConversationHandler(
+    entry_points=[CommandHandler("rename", rename_start)],
+    states={
+        ASK_NEW_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_new_name)],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )

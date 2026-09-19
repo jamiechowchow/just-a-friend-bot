@@ -14,7 +14,7 @@ from telegram.ext import (
 
 from bot import ai_reply, db, scheduling
 from bot.config import ADMIN_CHAT_IDS, TELEGRAM_BOT_TOKEN
-from bot.onboarding import onboarding_conversation, settings_conversation
+from bot.onboarding import onboarding_conversation, rename_conversation, settings_conversation
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -85,11 +85,13 @@ def main() -> None:
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(_post_init).build()
 
-    # These two handle the multi-step /start and /settings conversations.
-    # They only "claim" a message if that chat is mid-conversation with
-    # them, so plain messages fall through to handle_free_text below.
+    # These handle the multi-step /start, /settings, and /rename
+    # conversations. They only "claim" a message if that chat is
+    # mid-conversation with them, so plain messages fall through to
+    # handle_free_text below.
     app.add_handler(onboarding_conversation)
     app.add_handler(settings_conversation)
+    app.add_handler(rename_conversation)
     app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CommandHandler("users", users_command))
     app.add_handler(CallbackQueryHandler(scheduling.handle_button_tap))
