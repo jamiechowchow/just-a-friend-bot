@@ -42,6 +42,18 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_turns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (chat_id) REFERENCES users (chat_id)
+            )
+            """
+        )
 
 
 def create_user_if_missing(chat_id: int) -> None:
@@ -111,6 +123,34 @@ def save_response(
                 answer_text,
                 answer_score,
             ),
+        )
+
+
+def get_conversation_history(chat_id: int, limit: int) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT role, content FROM conversation_turns WHERE chat_id = ? ORDER BY id DESC LIMIT ?",
+            (chat_id, limit),
+        ).fetchall()
+    return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
+
+
+def append_conversation_turns(chat_id: int, turns: list[tuple[str, str]], keep_last: int) -> None:
+    create_user_if_missing(chat_id)
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.executemany(
+            "INSERT INTO conversation_turns (chat_id, role, content, created_at) VALUES (?, ?, ?, ?)",
+            [(chat_id, role, content, now) for role, content in turns],
+        )
+        conn.execute(
+            """
+            DELETE FROM conversation_turns
+            WHERE chat_id = ? AND id NOT IN (
+                SELECT id FROM conversation_turns WHERE chat_id = ? ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (chat_id, chat_id, keep_last),
         )
 
 

@@ -248,8 +248,7 @@ async def _handle_buttons_tap(
     context.chat_data.pop("pending_prompt", None)
     await query.edit_message_text(f"{prompt.question}\n\nYou picked: {label}")
 
-    history = context.chat_data.setdefault("history", [])
-    reply = await ai_reply.generate_reply(prompt_type, label, history)
+    reply = await ai_reply.generate_reply(prompt_type, label, chat_id)
     await context.bot.send_message(chat_id=chat_id, text=reply)
 
 
@@ -265,8 +264,7 @@ async def _handle_scale_tap(
     if prompt_type == "morning_sleep":
         reply = _sleep_score_reply(score)
     else:
-        history = context.chat_data.setdefault("history", [])
-        reply = await ai_reply.generate_reply(prompt_type, f"{score}/5", history)
+        reply = await ai_reply.generate_reply(prompt_type, f"{score}/5", chat_id)
     await context.bot.send_message(chat_id=chat_id, text=reply)
 
 

@@ -1,7 +1,9 @@
 import logging
+from datetime import datetime, timedelta, timezone
 
 import anthropic
 
+from bot import db
 from bot.config import ANTHROPIC_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -52,25 +54,60 @@ QUESTIONS = {
     ),
     "evening_biggest_win": "What's one win from today, big or small?",
     "evening_tomorrow_focus": "What's one thing you want tomorrow to look like?",
+    # Not used for generate_reply (sleep replies are fixed-text, not Claude-written) —
+    # only needed to label this prompt type in the recent-history context below.
+    "morning_sleep": "How they slept last night (they answered on a 1-5 scale)",
 }
 
 
 # How many recent messages (user + assistant turns combined) to keep per
 # chat, so replies stay aware of what was just said instead of restarting
-# the conversation from scratch each time. This lives only in memory
-# (context.chat_data), so it resets on a restart/redeploy — that's fine,
-# it's short-term conversational context, not the durable check-in history
-# already saved in the database.
+# the conversation from scratch each time. Persisted in the database (not
+# just in-memory), so it survives restarts/redeploys too.
 MAX_HISTORY_MESSAGES = 12
 
+# How far back to look for past check-in answers worth referencing in a
+# reply (a name they mentioned, something that seemed to affect their
+# mood, a recurring theme) — not everything gets brought up, just what's
+# genuinely worth a callback.
+MILESTONE_LOOKBACK_DAYS = 30
 
-async def _generate(history: list[dict], user_turn: str) -> str:
+
+def _format_past_answer(row) -> str:
+    question = QUESTIONS.get(row["prompt_type"], row["prompt_type"])
+    when = row["timestamp"][:10]
+    answer = row["answer_text"] if row["answer_text"] is not None else f'{row["answer_score"]}/5'
+    return f"- {when}: {question} — {answer}"
+
+
+def _build_recent_history_context(chat_id: int) -> str | None:
+    since = (datetime.now(timezone.utc) - timedelta(days=MILESTONE_LOOKBACK_DAYS)).isoformat()
+    rows = db.get_responses(chat_id, since_iso=since)
+    if not rows:
+        return None
+
+    lines = "\n".join(_format_past_answer(row) for row in rows)
+    return (
+        "Here's what this person has shared over the past month, oldest first. Only bring "
+        "any of it up if something genuinely resonates with what they're saying right now — "
+        "a name, a recurring theme, something that seemed to affect their mood. Don't force "
+        "a callback just because it's here.\n\n" + lines
+    )
+
+
+async def _generate(chat_id: int, user_turn: str) -> str:
+    history = db.get_conversation_history(chat_id, MAX_HISTORY_MESSAGES)
+    system = SYSTEM_PROMPT
+    recent_history_context = _build_recent_history_context(chat_id)
+    if recent_history_context:
+        system = f"{SYSTEM_PROMPT}\n\n{recent_history_context}"
+
     messages = [*history, {"role": "user", "content": user_turn}]
     try:
         response = await _get_client().messages.create(
             model="claude-opus-4-8",
             max_tokens=300,
-            system=SYSTEM_PROMPT,
+            system=system,
             messages=messages,
         )
         reply = next(block.text for block in response.content if block.type == "text").strip()
@@ -78,20 +115,20 @@ async def _generate(history: list[dict], user_turn: str) -> str:
         logger.exception("Claude API call failed; falling back to a generic reply")
         return "Thanks for sharing that with me \U0001F49B"
 
-    history.append({"role": "user", "content": user_turn})
-    history.append({"role": "assistant", "content": reply})
-    del history[: max(0, len(history) - MAX_HISTORY_MESSAGES)]
+    db.append_conversation_turns(
+        chat_id, [("user", user_turn), ("assistant", reply)], keep_last=MAX_HISTORY_MESSAGES
+    )
     return reply
 
 
-async def generate_reply(prompt_type: str, answer: str, history: list[dict]) -> str:
+async def generate_reply(prompt_type: str, answer: str, chat_id: int) -> str:
     question = QUESTIONS.get(prompt_type)
     if question is None:
-        return await generate_freeform_reply(answer, history)
+        return await generate_freeform_reply(answer, chat_id)
 
     user_turn = f'The daily check-in question was: "{question}"\nThey answered: "{answer}"'
-    return await _generate(history, user_turn)
+    return await _generate(chat_id, user_turn)
 
 
-async def generate_freeform_reply(user_message: str, history: list[dict]) -> str:
-    return await _generate(history, user_message)
+async def generate_freeform_reply(user_message: str, chat_id: int) -> str:
+    return await _generate(chat_id, user_message)
